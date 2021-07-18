@@ -3,8 +3,7 @@ from flask import Flask, request, jsonify, abort
 from sqlalchemy import exc
 import json
 from flask_cors import CORS
-
-from .database.models import db_drop_and_create_all, setup_db, Drink
+from .database.models import db, db_drop_and_create_all, setup_db, Drink
 from .auth.auth import AuthError, requires_auth
 
 
@@ -15,16 +14,21 @@ def create_app(test_config=None):
     CORS(app)
 
 
-
     '''
     @TODO uncomment the following line to initialize the datbase
     !! NOTE THIS WILL DROP ALL RECORDS AND START YOUR DB FROM SCRATCH
-    !! NOTE THIS MUST BE UNCOMMENTED ON FIRST RUN
+    !! NOTE THIS MUST BE UNCOMMENTED ON FIRST RUN ONLY (AFTER THAT COMMENT AGAIN)
     !! Running this funciton will add one
     '''
-    db_drop_and_create_all()
+    # db_drop_and_create_all()
 
     # ROUTES
+
+    @app.route('/')
+    def helloWorld():
+        return jsonify("hello world")
+    
+    
     '''
     @TODO implement endpoint
         GET /drinks
@@ -34,15 +38,29 @@ def create_app(test_config=None):
             or appropriate status code indicating reason for failure
     '''
 
-    @app.route('/')
+    def convert_jsonList_toList(myList):
+        return json.loads(myList)
+
+
+    @app.route('/drinks')
     def getDrinks():
-        return jsonify("hello world")
+        all_drinks=Drink.query.all()
+        all_drinks_list=[]
+        all_recipes_list=[]
+        for index,drink in enumerate(all_drinks):
+            drink_details={
+                "id":drink.id,
+                "title":drink.title,
+                "recipe": [{'color': r['color'], 'parts': r['parts']} for r in json.loads(drink.recipe)]
+                
+            }
+            all_drinks_list.append(drink_details)
 
-
-    @app.route('/questions_in_table_order')
-    def getDrinks():
-        return jsonify({"drinks": ["dummy_drink"]})
-
+            
+        return jsonify({
+        'success': True ,
+        'drinks' : all_drinks_list
+        })
 
 
     '''
@@ -54,9 +72,21 @@ def create_app(test_config=None):
             or appropriate status code indicating reason for failure
     '''
 
-    @app.route('/questions_in_table_order')
-    def getDrinkDetails():
-        return jsonify({"drinks": ["dummy_drink"]})
+    @app.route('/drinks-detail')
+    def getDrinksDetails():
+        all_drinks=Drink.query.all()
+        all_drinks_list=[]
+        for drink in all_drinks:
+            drink_details={
+                str(drink.id):drink.id,
+                'title':drink.title,
+                'recipe':drink.recipe,
+            }
+            all_drinks_list.append(drink_details)
+        return jsonify({
+        'success': True ,
+        'drinks' : all_drinks_list
+        })
 
 
     '''
@@ -68,6 +98,24 @@ def create_app(test_config=None):
         returns status code 200 and json {"success": True, "drinks": drink} where drink an array containing only the newly created drink
             or appropriate status code indicating reason for failure
     '''
+
+    @app.route('/drinks', methods=['POST'])
+    def postDrinkDetails():
+        body = request.get_json()
+        new_title= body['title']
+        new_recipe= body['recipe']
+
+        drink = Drink(
+            title=str(new_title),
+            recipe=json.dumps(new_recipe)
+        )
+
+        drink.insert()
+
+        return jsonify ({
+            "success": True ,
+            "drinks": new_recipe     
+        })
 
 
     '''
@@ -125,6 +173,14 @@ def create_app(test_config=None):
     @TODO implement error handler for 404
         error handler should conform to general task above
     '''
+
+    @app.errorhandler(404)
+    def unprocessable(error):
+        return jsonify({
+            "success": False,
+            "error": 404,
+            "message": "resource not found"
+        }), 404
 
 
     '''

@@ -83,3 +83,13 @@ There are `@TODO` comments throughout the `./backend/src`. We recommend tackling
 
 1. `./src/auth/auth.py`
 2. `./src/api.py`
+
+
+### Code Formatting according to PEP 8 Style
+
+Autocorrect formatting problems:
+pip install --upgrade autopep8
+autopep8 --in-place --aggressive --aggressive __init__.py
+
+Obtain a list of formatting problems in file:
+Install Package: https://pypi.org/project/pycodestyle/ Check Code if code formatting is correct: pycodestyle --first ./backend/src/api.py

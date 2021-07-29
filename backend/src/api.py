@@ -13,6 +13,16 @@ def create_app(test_config=None):
     setup_db(app)
     CORS(app)
 
+    @app.after_request
+    def after_request(response):
+        response.headers.add(
+            'Access-Control-Allow-Headers',
+            'Content-Type,Authorization,true')
+        response.headers.add(
+            'Access-Control-Allow-Methods',
+            'GET,PUT,POST,DELETE,OPTIONS')
+        return response
+
     '''
     @TODO uncomment the following line to initialize the datbase
     !! NOTE THIS WILL DROP ALL RECORDS AND START YOUR DB FROM SCRATCH
@@ -24,7 +34,7 @@ def create_app(test_config=None):
 
     # ROUTES
 
-    @app.route('/')
+    @app.route('/', methods=['GET'])
     def helloWorld():
         return jsonify("hello world")
 
@@ -39,9 +49,8 @@ def create_app(test_config=None):
             or appropriate status code indicating reason for failure
     '''
 
-    @app.route('/drinks')
+    @app.route('/drinks', methods=['GET'])
     def getDrinks():
-        error = False
         try:
             all_drinks = Drink.query.all()
             all_drinks_list = []
@@ -53,17 +62,14 @@ def create_app(test_config=None):
                                for r in json.loads(drink.recipe)]
                 }
                 all_drinks_list.append(drink_details)
-        except:
-            error = True
+        except Exception:
+            abort(422)
         finally:
-            if not error:
-                return jsonify({
-                    'success': True,
-                    'drinks': all_drinks_list
-                })
+            return jsonify({
+                'success': True,
+                'drinks': all_drinks_list
+            })
 
-            elif error:
-                abort(422)
 
     '''
     @TODO implement endpoint
@@ -75,7 +81,7 @@ def create_app(test_config=None):
             or appropriate status code indicating reason for failure
     '''
 
-    @app.route('/drinks-detail')
+    @app.route('/drinks-detail', methods=['GET'])
     def getDrinksDetails():
         try:
             drinks = Drink.query.order_by(Drink.id).all()
@@ -102,25 +108,24 @@ def create_app(test_config=None):
         body = request.get_json()
         new_title = body['title']
         new_recipe = body['recipe']
-        error = False
 
         try:
             drink = Drink(
                 title=str(new_title),
                 recipe=json.dumps(new_recipe)
             )
-
-            drink.insert()
-        except:
-            error = True
+        except Exception:
+            db.session.rollback()
+            db.session.close()
+            abort(422)
         finally:
-            if not error:
-                return jsonify({
-                    "success": True,
-                    "drinks": [body]
-                })
-            elif error:
-                abort(422)
+            db.session.add(drink)
+            db.session.commit()
+            db.session.close()
+            return jsonify({
+                "success": True,
+                "drinks": [body]
+            })
 
     '''
     @TODO implement endpoint
@@ -139,28 +144,26 @@ def create_app(test_config=None):
         body = request.get_json()
         new_title = body['title']
         new_recipe = body['recipe']
-        error = False
         try:
             drinkToEdit = Drink.query.filter(Drink.id == drink_id)\
                           .one_or_none()
-        except:
-            error = True
+        except Exception:
+            db.session.rollback()
+            db.session.close()
+            abort(422)
         finally:
-            if not error:
-                drinkToEdit.title = new_title
-                drinkToEdit.recipe = json.dumps(new_recipe)
-                drinkToEdit.update()
+            drinkToEdit.title = new_title
+            drinkToEdit.recipe = json.dumps(new_recipe)
+            drinkToEdit.update()
 
-                return jsonify({
-                    'success': True,
-                    'drinks': [{
-                        "id": drinkToEdit.id,
-                        "title": drinkToEdit.title,
-                        "recipe": drinkToEdit.recipe}]
-                })
+            return jsonify({
+                'success': True,
+                'drinks': [{
+                    "id": drinkToEdit.id,
+                    "title": drinkToEdit.title,
+                    "recipe": drinkToEdit.recipe}]
+            })
 
-            elif error:
-                abort(422)
 
     '''
     @TODO implement endpoint
@@ -176,22 +179,22 @@ def create_app(test_config=None):
 
     @app.route('/drinks/<int:drink_id>', methods=['DELETE'])
     def deleteDrink(drink_id):
-        error = False
         try:
             drink_to_delete = Drink.query.filter(Drink.id == drink_id)\
                               .one_or_none()
-        except:
-            error = True
+        except Exception:
+            db.session.rollback()
+            db.session.close()
+            abort(404)
         finally:
-            if not error:
-                drink_to_delete.delete()
-                return jsonify({
-                    'success': True,
-                    'delete': drink_id
-                })
+            db.session.delete(drink_to_delete)
+            db.session.commit()
+            db.session.close()
+            return jsonify({
+                'success': True,
+                'delete': drink_id
+            })
 
-            elif error:
-                abort(404)
 
     # Error Handling
     '''
@@ -234,4 +237,12 @@ def create_app(test_config=None):
     @TODO implement error handler for AuthError
         error handler should conform to general task above
     '''
+
+    @app.errorhandler(AuthError)
+    def authorizationError(exception):
+        response = jsonify(exception.error)
+        response.status_code = exception.status_code
+        return response
+
+
     return app
